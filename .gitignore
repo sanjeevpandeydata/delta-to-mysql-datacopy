@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Databricks / notebooks
+.ipynb_checkpoints/
+
+# Local / credentials — never commit these
+.env
+*.env
+*.pem
+*.key
+config*.json
+!requirements.txt
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

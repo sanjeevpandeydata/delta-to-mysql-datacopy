@@ -1,0 +1,5 @@
+# Notebook imports only. Versions follow the Databricks runtime in use;
+# the workflow YAML also lists the environment dependencies.
+mysql-connector-python
+pyspark
+python-dateutil
