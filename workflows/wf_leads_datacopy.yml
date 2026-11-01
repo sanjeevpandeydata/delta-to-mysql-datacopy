@@ -1,0 +1,111 @@
+# ============================================================
+# Databricks Workflow Definition
+# Pipeline : wf_leads_datacopy
+# Purpose  : Copies leads report data from Delta Lake to MySQL.
+#            Includes a readiness check task before the main
+#            copy — only proceeds if source table has data.
+#            Supports hist (full reload) and daily (incremental)
+#            modes via the activity_timeframe parameter.
+# Author   : Sanjeev Kumar Pandey
+# ============================================================
+
+resources:
+  jobs:
+    wf_leads_datacopy:
+      name: wf_leads_datacopy
+
+      schedule:
+        quartz_cron_expression: 22 30 0 * * ?
+        timezone_id: America/New_York
+        pause_status: PAUSED
+
+      tasks:
+        # ── Task 1: Readiness check ───────────────────────────
+        # Validates source table has data before triggering copy.
+        # Sets task value 'table_count' used in Task 2 condition.
+        - task_key: check_data_copy_readiness
+          notebook_task:
+            notebook_path: /Workspace/projects/leads_datacopy/check_data_copy_readiness
+            source: WORKSPACE
+          environment_key: Default
+
+        # ── Task 2: Gate condition ────────────────────────────
+        # Only proceeds if table_count == "1" (data is ready).
+        - task_key: table_count_check
+          depends_on:
+            - task_key: check_data_copy_readiness
+          condition_task:
+            op: EQUAL_TO
+            left:  "{{tasks.check_data_copy_readiness.values.table_count}}"
+            right: "1"
+
+        # ── Task 3: Data copy ─────────────────────────────────
+        # Runs only when table_count_check outcome is true.
+        - task_key: leads_data_copy
+          depends_on:
+            - task_key: table_count_check
+              outcome: "true"
+          notebook_task:
+            notebook_path: /Workspace/projects/leads_datacopy/leads_data_copy_v2_optimized
+            source: WORKSPACE
+          environment_key: Default
+
+      queue:
+        enabled: true
+
+      parameters:
+        - name: activity_timeframe
+          default: hist
+
+        - name: appName
+          default: leads_datacopy
+
+        - name: chunk_size
+          default: "50000"
+
+        - name: dataset
+          default: leads_detailrpt_daily
+
+        - name: env
+          default: dev
+
+        - name: leads_table
+          default: leads_detailrpt_daily
+
+        - name: ops_database
+          default: ops
+
+        - name: ops_table
+          default: ops_application_metadata
+
+        - name: pipeline_activity
+          default: leads_data_copy
+
+        - name: pipeline_or_workflow_name
+          default: wf_leads_datacopy
+
+        - name: staging_database
+          default: staging_db
+
+        - name: status_database
+          default: ops
+
+        - name: status_tbl
+          default: tbl_run_status
+
+      run_as:
+        service_principal_name: <your-service-principal-id>
+
+      environments:
+        - environment_key: Default
+          spec:
+            dependencies:
+              - azure-storage-file-share
+              - azure-eventhub
+              - sendgrid
+              - paramiko
+              - mysql-connector-python
+              - /Volumes/uc_dev/default/jars/shared_functions-0.8-py3-none-any.whl
+            environment_version: "2"
+
+      performance_target: PERFORMANCE_OPTIMIZED
